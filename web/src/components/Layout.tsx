@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Upload, Home, Image as ImageIcon } from "lucide-react";
+import { Upload, Image as ImageIcon } from "lucide-react";
 
 interface LayoutProps {
   children: React.ReactNode;

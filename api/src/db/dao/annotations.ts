@@ -1,6 +1,6 @@
 import { eq, and } from "drizzle-orm";
 import { db } from "../index";
-import { annotations, commentThreads, type Annotation } from "../schema";
+import { annotations, type Annotation } from "../schema";
 
 export type CreateAnnotationInput = {
   versionId: string;
@@ -48,7 +48,7 @@ export const updateAnnotation = async (
 };
 
 export const deleteAnnotation = async (id: string): Promise<boolean> => {
-  const result = await db.delete(annotations).where(eq(annotations.id, id));
-  return result.rowCount > 0;
+  const result = await db.delete(annotations).where(eq(annotations.id, id)).returning();
+  return result.length > 0;
 };
 

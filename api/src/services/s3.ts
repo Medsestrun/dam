@@ -5,7 +5,6 @@ import {
   CompleteMultipartUploadCommand,
   AbortMultipartUploadCommand,
   GetObjectCommand,
-  PutObjectCommand,
   CopyObjectCommand,
   type CompletedPart,
 } from "@aws-sdk/client-s3";

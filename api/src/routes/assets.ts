@@ -7,7 +7,6 @@ import {
   deleteAsset,
 } from "../db/dao/assets";
 import { getVersionsByAssetId, getVersionById } from "../db/dao/versions";
-import { getRenditionsByVersionId } from "../db/dao/renditions";
 import { getPresignedGetUrl } from "../services/s3";
 
 const assets = new Hono();

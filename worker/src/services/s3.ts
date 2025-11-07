@@ -5,7 +5,6 @@ import {
 } from "@aws-sdk/client-s3";
 import { Readable } from "stream";
 import { writeFile, readFile } from "fs/promises";
-import { pipeline } from "stream/promises";
 
 const endpoint = process.env.MINIO_ENDPOINT || "http://minio:9000";
 const region = process.env.S3_REGION || "us-east-1";

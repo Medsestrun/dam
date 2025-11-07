@@ -1,4 +1,4 @@
-import { eq, and, lt } from "drizzle-orm";
+import { eq, lt } from "drizzle-orm";
 import { db } from "../index";
 import { uploadSessions, type UploadSession } from "../schema";
 
@@ -57,22 +57,25 @@ export const markUploadComplete = async (id: string): Promise<boolean> => {
   const result = await db
     .update(uploadSessions)
     .set({ state: "completed" })
-    .where(eq(uploadSessions.id, id));
-  return result.rowCount > 0;
+    .where(eq(uploadSessions.id, id))
+    .returning();
+  return result.length > 0;
 };
 
 export const markUploadAborted = async (id: string): Promise<boolean> => {
   const result = await db
     .update(uploadSessions)
     .set({ state: "aborted" })
-    .where(eq(uploadSessions.id, id));
-  return result.rowCount > 0;
+    .where(eq(uploadSessions.id, id))
+    .returning();
+  return result.length > 0;
 };
 
 export const cleanupExpiredSessions = async (): Promise<number> => {
   const result = await db
     .delete(uploadSessions)
-    .where(lt(uploadSessions.expiresAt, new Date()));
-  return result.rowCount || 0;
+    .where(lt(uploadSessions.expiresAt, new Date()))
+    .returning();
+  return result.length;
 };
 

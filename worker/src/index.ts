@@ -1,11 +1,9 @@
 import { createClient } from "redis";
-import { db } from "./db/index";
 import { getVersionById } from "./db/dao/versions";
 import { createRendition, markRenditionReady } from "./db/dao/renditions";
 import {
   downloadFromS3,
   uploadToS3,
-  getPresignedGetUrl,
 } from "./services/s3";
 import { renderPDF, renderImage, convertOfficeToPDF } from "./services/render";
 

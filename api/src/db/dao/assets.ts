@@ -1,13 +1,8 @@
-import { eq, and, desc, sql, ilike, or, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, ilike, or } from "drizzle-orm";
 import { db } from "../index";
 import {
   assets,
-  assetVersions,
-  renditions,
-  annotations,
-  commentThreads,
   type Asset,
-  type AssetVersion,
 } from "../schema";
 
 export type CreateAssetInput = {
@@ -106,7 +101,7 @@ export const updateAsset = async (
 };
 
 export const deleteAsset = async (id: string): Promise<boolean> => {
-  const result = await db.delete(assets).where(eq(assets.id, id));
-  return result.rowCount > 0;
+  const result = await db.delete(assets).where(eq(assets.id, id)).returning();
+  return result.length > 0;
 };
 

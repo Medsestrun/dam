@@ -30,7 +30,8 @@ export const markRenditionReady = async (id: string): Promise<boolean> => {
   const result = await db
     .update(renditions)
     .set({ ready: true })
-    .where(eq(renditions.id, id));
-  return result.rowCount > 0;
+    .where(eq(renditions.id, id))
+    .returning();
+  return result.length > 0;
 };
 
