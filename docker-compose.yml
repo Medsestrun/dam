@@ -1,0 +1,90 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: dam-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    command: postgres -c shared_preload_libraries=pg_trgm
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: dam-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio
+    container_name: dam-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # Console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://minio:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio-init:
+    image: minio/mc
+    container_name: dam-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command: -c '
+      mc alias set local ${MINIO_INTERNAL_ENDPOINT} ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} && 
+      mc mb -p local/${MINIO_BUCKET} || true &&
+      mc anonymous set none local/${MINIO_BUCKET}'
+    environment:
+      MINIO_INTERNAL_ENDPOINT: ${MINIO_INTERNAL_ENDPOINT}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+
+  # worker:
+  #   build:
+  #     context: ./worker
+  #     dockerfile: Dockerfile
+  #   container_name: dam-worker
+  #   depends_on:
+  #     api:
+  #       condition: service_healthy
+  #   environment:
+  #     NODE_ENV: production
+  #     DATABASE_URL: ${DATABASE_URL}
+  #     REDIS_URL: ${REDIS_URL}
+  #     MINIO_ENDPOINT: ${S3_ENDPOINT}
+  #     MINIO_KEY: ${S3_ACCESS_KEY_ID}
+  #     MINIO_SECRET: ${S3_SECRET_ACCESS_KEY}
+  #     MINIO_BUCKET: ${MINIO_BUCKET}
+  #     S3_REGION: ${S3_REGION}
+  #   # если нужен доступ к большим tmp-файлам при конвертации
+  #   volumes:
+  #     - worker_tmp:/tmp
+
+volumes:
+  pg_data:
+  minio_data:
+  worker_tmp:

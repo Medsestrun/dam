@@ -1,0 +1,30 @@
+{
+  "name": "@dam/worker",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run dist/index.js",
+    "build": "bun build ./src/index.ts --target bun --outdir dist",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.654.0",
+    "@aws-sdk/s3-request-presigner": "^3.654.0",
+    "drizzle-orm": "^0.36.4",
+    "pg": "^8.13.1",
+    "postgres": "^3.4.5",
+    "redis": "^4.7.0",
+    "sharp": "^0.33.5",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.4",
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "bun-types": "latest",
+    "typescript": "^5.7.2"
+  }
+}

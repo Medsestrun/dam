@@ -1,0 +1,148 @@
+0) Общее
+	•	Цель: DAM-MVP c загрузкой больших и множества файлов, версионностью, предпросмотром PDF/изображений/office (через конверт в PDF), аннотациями, базовым поиском (SQL, без ES).
+	•	Нефункциональные:
+	•	Файлы ≥10 ГБ (multipart), десятки одновременных загрузок.
+	•	Приватность: все бакеты приватные, доступ через presigned URLs ≤10 мин.
+	•	Надёжность: ретраи частей и рендер-джоб.
+	•	Аудит действий.
+	•	Развёртывание: Docker Compose (dev), далее — Helm (prod).
+
+1) Архитектура
+	•	web/: React+Vite, shadcn/ui, Tailwind.
+	•	api/: Bun + Elysia/Hono (или Native HTTP) + Drizzle (Postgres) + Redis + AWS SDK v3 (MinIO).
+	•	worker/: Bun-воркер (Redis Lists/Streams) для рендишенов и office-конверта.
+	•	minio/: S3-совместимое хранилище.
+	•	libreoffice-svc/: контейнер с soffice --headless (конвертация в PDF).
+
+Основные потоки
+	1.	Загрузка: клиент → init upload → presigned PUT на части → complete → создаются Asset/AssetVersion → событие в очередь рендеринга.
+	2.	Рендер: worker вытаскивает оригинал → (office? конверт в PDF) → генерит превью/тайлы → пишет Rendition → уведомляет.
+	3.	Просмотр: web запрашивает Rendition URLs (presigned GET) → PDF.js/OpenSeadragon.
+	4.	Аннотации/комменты: web создаёт аннотации (нормализованные координаты), треды и комментарии через API.
+
+2) Схема БД (Drizzle/PG, кратко)
+// assets
+id PK, projectId?, title?, description?, type ENUM(image|video|audio|pdf|doc|xls|ppt|other),
+status ENUM(draft|in_review|approved|rejected|archived) DEFAULT draft,
+tags jsonb[], currentVersionId FK asset_versions.id,
+createdBy, createdAt, updatedAt
+
+// asset_versions
+id PK, assetId FK, version int, bucket, key, size int,
+sha256?, mime, width?, height?, pages?, techMeta jsonb?,
+createdBy, createdAt
+
+// renditions
+id PK, assetVersionId FK, kind ENUM(thumb|preview|page|tile|webp),
+bucket, key, width?, height?, page?, ready bool, createdAt
+
+// upload_sessions
+id PK, target ENUM(new_asset|new_version), assetId?,
+fileName, mime, totalSize, partSize, s3UploadId, bucket, keyTemp,
+receivedBytes, state ENUM(initiated|uploading|completed|aborted),
+createdBy, createdAt, expiresAt
+
+// annotations
+id PK, versionId FK, page?, kind ENUM(pin|rect|arrow|highlight|text),
+payload jsonb, authorId, threadId, createdAt, resolvedAt?
+
+// comment_threads
+id PK, versionId FK, page?, status ENUM(open|resolved), createdBy, createdAt
+
+// comments
+id PK, threadId FK, authorId, body text, createdAt
+
+// permissions (RBAC на уровне asset/project)
+id PK, subjectType ENUM(user|group), subjectId, objectType ENUM(asset|project),
+objectId, role ENUM(owner|editor|viewer|guest)
+
+Индексы: assets(type,status), GIN по tags, LOWER(title) с pg_trgm, asset_versions(assetId,version).
+
+3) API (OpenAPI-уровень, коротко)
+
+Uploads
+	•	POST /uploads → { uploadId, partSize, bucket, key }
+body: { target, assetId?, fileName, mime, totalSize }
+	•	POST /uploads/:id/parts → { url }
+body: { partNumber }
+	•	POST /uploads/:id/complete → { assetId, versionId }
+body: { parts: [{partNumber, etag}], sha256? }
+	•	POST /uploads/:id/abort → 204
+
+Assets
+	•	GET /assets?query=&type=&status=&tags= → список c пагинацией
+	•	POST /assets/:id/versions (новая версия от существующего файла) → { versionId }
+	•	GET /assets/:id → карточка (с currentVersion)
+	•	GET /assets/:id/versions → список версий
+	•	GET /download/:versionId → { url } (presigned GET)
+
+Renditions
+	•	GET /renditions/:versionId → [ {id, kind, page?, width,height, url, ready} ]
+
+Annotations & Comments
+	•	GET /annotations?versionId= → список
+	•	POST /annotations → { id, threadId }
+body: { versionId, page?, kind, payload, comment? }
+	•	PATCH /annotations/:id (редактировать/resolve)
+	•	GET /threads/:id/comments → список
+	•	POST /threads/:id/comments → { id }
+body: { body }
+
+Auth/RBAC
+	•	JWT (OAuth2/OIDC провайдер вне рамок MVP), роли admin|editor|viewer.
+
+4) Рендеринг и предпросмотр
+
+PDF
+	•	Инструменты: poppler-utils (pdftoppm, pdfinfo) или mutool draw.
+	•	Генерировать страницы в WebP/PNG (ширины: 512/1024/2048), записывать в renditions(kind=page, page=n).
+	•	Для миниатюр — renditions(kind=thumb).
+
+Изображения
+	•	sharp: превью + DeepZoom тайлы (.dzi / 256×256) → kind=tile/page.
+
+Office
+	•	LibreOffice (headless): soffice --headless --convert-to pdf.
+	•	После конверта — обрабатываем как PDF.
+
+Доставка
+	•	Все url — только presigned GET (TTL 10 мин). При истечении — клиент перезапрашивает.
+
+5) Клиент (web)
+	•	Загрузка: drag&drop + webkitdirectory поддержка; параллельные части (6 одновременных); прогресс-бар; ретраи.
+	•	Список/фильтры: DataTable (shadcn), фильтры по типу/статусу/тегам/поиску.
+	•	Viewer:
+	•	PDF: PDF.js (панель страниц, зум, панорамирование).
+	•	Image: OpenSeadragon (тайлы).
+	•	Аннотации: Konva; координаты нормализованы [0..1].
+	•	UX: «Готово N из M страниц», «Ожидает конвертации», «Ошибка конвертации — повторить».
+
+6) Безопасность и соответствие
+	•	Приватные бакеты, SSE-S3/KMS.
+	•	Проверка MIME по сигнатурам (magic bytes).
+	•	(Опционально) ClamAV на финализацию upload.
+	•	Ограничения расширений (блок исполняемых).
+	•	Аудит: upload/createVersion/annotate/download/share.
+
+7) Ошибки и ретраи
+	•	Политика ретраев частей: экспоненциальная, до 5 попыток; на 413/5xx — пауза.
+	•	Рендер-джобы: DLQ c причиной (Redis list queue:preview:dlq).
+	•	Идempotency ключи на complete.
+
+8) Переменные окружения (api/worker)
+POSTGRES_URL=postgres://user:pass@host:5432/db
+REDIS_URL=redis://host:6379/0
+MINIO_ENDPOINT=http://minio:9000
+MINIO_KEY=...
+MINIO_SECRET=...
+MINIO_BUCKET=assets
+PRESIGN_TTL_SECONDS=600
+LIBREOFFICE_HOST=http://libreoffice:3000
+
+9) Готовность (DoD)
+	•	Загрузка 10 ГБ файла стабильно завершается после временного оффлайна.
+	•	PDF и PNG/JPG получают превью ≤60 сек на 100-страничный PDF (в фоне).
+	•	DOCX/XLSX/PPTX конвертируются в PDF и рендерятся.
+	•	Аннотации создаются/редактируются/разрешаются; координаты устойчивы к зуму.
+	•	Все скачивания идут через presigned GET.
+	•	Базовый поиск по названию/тегам/типу/статусу работает быстро (<300 мс).

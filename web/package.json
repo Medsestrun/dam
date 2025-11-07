@@ -1,0 +1,41 @@
+{
+  "name": "@dam/web",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write ."
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.62.11",
+    "@tanstack/react-table": "^8.20.5",
+    "clsx": "^2.1.1",
+    "konva": "^9.2.3",
+    "lucide-react": "^0.468.0",
+    "openseadragon": "^5.0.1",
+    "pdfjs-dist": "^4.9.129",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-dropzone": "^14.2.3",
+    "react-konva": "^18.2.10",
+    "react-router-dom": "^6.28.0",
+    "tailwind-merge": "^2.6.0",
+    "zod": "^3.24.1",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.4",
+    "@tailwindcss/vite": "^4.1.17",
+    "@types/node": "^22.10.2",
+    "@types/openseadragon": "^5.0.1",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5"
+  }
+}
